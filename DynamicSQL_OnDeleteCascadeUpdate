@@ -1,0 +1,35 @@
+
+DECLARE @DatabaseName NVARCHAR(128) = 'YourDatabaseName'; -- Replace with your database name
+DECLARE @ParentTableName NVARCHAR(128) = 'YourTableName';   -- Replace with your parent table name
+DECLARE @sql NVARCHAR(MAX);
+
+-- Initialize the SQL variable
+SET @sql = '
+USE ' + QUOTENAME(@DatabaseName) + '; -- Switch context to the target database
+
+DECLARE @DynamicSQL NVARCHAR(MAX);
+SET @DynamicSQL = '''';
+
+-- Generate dynamic SQL for updating foreign keys to include ON DELETE CASCADE
+SELECT @DynamicSQL = @DynamicSQL + ''
+    ALTER TABLE '' + QUOTENAME(SCHEMA_NAME(t.schema_id)) + ''.'' + QUOTENAME(t.name) +
+    '' DROP CONSTRAINT '' + QUOTENAME(fk.name) + '';
+    
+    ALTER TABLE '' + QUOTENAME(SCHEMA_NAME(t.schema_id)) + ''.'' + QUOTENAME(t.name) +
+    '' ADD CONSTRAINT '' + QUOTENAME(fk.name) +
+    '' FOREIGN KEY ('' + COL_NAME(fc.parent_object_id, fc.parent_column_id) + '')
+    REFERENCES '' + QUOTENAME(SCHEMA_NAME(pt.schema_id)) + ''.'' + QUOTENAME(pt.name) + '' ('' +
+    COL_NAME(fc.referenced_object_id, fc.referenced_column_id) + '')
+    ON DELETE CASCADE;'' + CHAR(10)
+FROM sys.foreign_keys AS fk
+INNER JOIN sys.foreign_key_columns AS fc ON fk.object_id = fc.constraint_object_id
+INNER JOIN sys.tables AS t ON fk.parent_object_id = t.object_id
+INNER JOIN sys.tables AS pt ON fk.referenced_object_id = pt.object_id
+WHERE pt.name = ''' + @ParentTableName + ''';
+
+-- Execute dynamic SQL
+EXEC sp_executesql @DynamicSQL;
+';
+
+-- Execute the script to switch context and update foreign keys
+EXEC sp_executesql @sql;
